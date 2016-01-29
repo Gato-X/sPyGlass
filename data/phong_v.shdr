@@ -1,0 +1,22 @@
+#version 130
+
+// attributes
+attribute vec3 position;
+attribute vec3 normal;
+
+// uniforms
+uniform mat3 normal_m;
+uniform mat4 modelview_m;
+uniform mat4 projection_m;
+
+out vec3 v; // fragment position
+out vec3 N; // fragment normal
+
+void main() {
+	N =  normal_m * normal;
+	vec4 pos = modelview_m* vec4(position, 1.0);
+	v = pos.xyz;
+
+	gl_Position = projection_m * pos;
+}
+
