@@ -43,6 +43,7 @@ except:
 	import xml.etree.ElemTree as ET
 
 
+# This class loads a font from a zip file as generated with this tool: http://kvazars.com/littera/
 
 class LitteraFont:
 
@@ -128,8 +129,10 @@ class LitteraFont:
 
 class Text(ObjManager):
 
+	# note initial_size (for now) is the max number of characters the Text instance
+	# can render
 	def __init__(self, initial_size=100):
-		data = N.zeros((initial_size,4),dtype=NumpyDefaultFloatType) # pos(2)+uv(2) -> 5
+		data = N.zeros((initial_size,4),dtype=NumpyDefaultFloatType) # pos(2)+uv(2) -> 4
 		self._data_vbo = DataVbo(data, GL_DYNAMIC_DRAW)
 
 		indices = []
@@ -147,7 +150,6 @@ class Text(ObjManager):
 		self._shader = R.loadShaderProgram("text")
 
 		super(Text,self).__init__(self._data_vbo, self._indices_vbo)
-
 
 
 	def setFont(self, font):

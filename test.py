@@ -36,8 +36,15 @@ from sPyGlass.camera import PerspectiveCamera
 import sPyGlass.libs.transformations as T
 from sPyGlass.text import Text
 
+# We inherit from ObjManager, but that's not necessary. We do that to be able to call
+# cube.draw(...) and cube.setTransform(...)
+
 class Cube(ObjManager):
+
 	def __init__(self):
+		# Create two lists: one with vertex positions, and normals, and the 
+		# other one with the indices that indicate which vertices should be 
+		# used for each triangle (two per face of the cube)
 		pos = []
 		for i in xrange(8):
 			pos.append([
@@ -60,22 +67,41 @@ class Cube(ObjManager):
 			i +=4
 
 			for j,v in enumerate(f):
+				# notice vertices is a list of lists. Each row holds the data of a single vertex
+				# and each column is a float
 				vertices.append(list(p_arr[j]) + n)
 
+		# convert the list of lists into a Numpy array of floats
 		vertices = floatArray(vertices)
 
+		# create two VBO, one for the data of each vertex (a GL_ARRAY_BUFFER), 
+		# and one for the indices into that array (a GL_ELEMENT_ARRAY_BUFFER)
 		self._data_vbo = DataVbo(vertices)
 		self._indices_vbo = IndexVbo(indices)
 
+		# we specify what is stored in each record (a rown in vertices) in the data_vbo mean
+		# we do this so sPyGlass can automatically bind the attributes in the shaders. That means
+		# the names we specify here, must match both in name and dimension with the attributes
+		# of the shaders that make use of this vbo
+
 		self._data_vbo.defineFields(("position",3),("normal",3))
 
-		shader = R.loadShaderProgram("phong")
-
-		mat = R.loadMaterial("default:red_plastic")
-
+		# now that we have the VBOs, we call the superclass constructor
 		super(Cube,self).__init__(self._data_vbo, self._indices_vbo)
 
+		# we're going to specify a "Batch". a "Batch" is a combination of VBOs, indices range, 
+		# a shader, and a material
+
+		# load the shader program (vertex and fragment shaders)
+		shader = R.loadShaderProgram("phong")
+
+		# load the material red_plastic from the file default.mat
+		mat = R.loadMaterial("default:red_plastic")
+
+		# 0 - start this batch at index 0
+		# 12 - use enough indices for 12 primitives (GL_TRIANGLES in this case)
 		self.addBatch(shader, mat, 0, 12)
+		#self.addBatch(shader, mat, 0, 12, GL_TRIANGLES) # GL_TRIANGLES is the default
 
 
 class MainScene(Scene):
@@ -83,6 +109,7 @@ class MainScene(Scene):
 	def __init__(self):
 		super(MainScene,self).__init__()
 
+		# use font "test-font" (.zip)
 		self._fnt = R.loadFont("test-font")
 
 		self._cube = Cube()
