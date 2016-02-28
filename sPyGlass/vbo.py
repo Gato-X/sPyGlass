@@ -159,7 +159,7 @@ class DataVbo(Vbo):
 		offset = 0
 		for f_name, f_size in field_info:
 
-			if offset > self._items_per_record:
+			if offset+f_size > self._items_per_record:
 				raise self.Error("Record size of %s exceeded at field '%s'"%(self._items_per_record, f_name))
 
 			if f_size < 1 or f_size > 4:
