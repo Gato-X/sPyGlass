@@ -44,6 +44,7 @@ class Scene(object):
 		# these are computed and cached:
 		self._normal_m = None
 		self._modelview_m = None
+		self._light_m = None
 		self._view_m = self._projection_m = None
 		
 
@@ -79,6 +80,8 @@ class Scene(object):
 			if self._camera_changed:
 				self._view_m, self._projection_m = self._camera.getMatrices()
 				self._camera_changed = False
+
+				self._light_m = self._view_m
 
 			self._modelview_m = N.dot(self._view_m, self._model_m)
 			self._model_m_changed = False
@@ -124,6 +127,7 @@ class Scene(object):
 
 		glUniformMatrix4fv(shader.uni_modelview_m,1,GL_TRUE, self._modelview_m.ravel())
 		glUniformMatrix3fv(shader.uni_normal_m,1,GL_TRUE, self._normal_m.ravel())
+		glUniformMatrix4fv(shader.uni_light_m,1,GL_TRUE, self._light_m.ravel())
 		glUniformMatrix4fv(shader.uni_projection_m,1,GL_TRUE,self._projection_m.ravel())
 #		glUniformMatrix3fv(shader.uni_light_m,1,GL_TRUE, N.dot(self._light_m, self._modelview_m[0:3,0:3]).ravel())
 		glUniform3fv(shader.uni_light0_position,1,self._light_position.ravel())
