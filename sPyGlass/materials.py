@@ -39,6 +39,7 @@ class Material:
 		self._specular_color = floatArray([1.0,1.0,1.0])
 		self._specular_exp = 2.0
 		self._alpha = 1.0
+		self._shader = None
 				
 
 	def setTexture(self, tex_num, texture):
@@ -59,7 +60,34 @@ class Material:
 	def setAlpha(self, alpha):
 		self._alpha = float(alpha)
 
-	def toCompiled(self, shader):
+	def setShader(self, shader):
+		self._shader = shader # either a ShaderProgram instance or the name of a shader
+
+	def getShaderName(self):
+		try:
+			return self._shader.getName()
+		except:
+			return self._shader
+
+	def getShader(self):
+		if self._shader is None:
+			return None
+		try:
+			self._shader.getName()
+			return self._shader
+		except:
+			self._shader = R.loadShaderProgram(self._shader)
+			return self._shader
+
+
+# if shader==None, then the material must specify which shader to use
+	def toCompiled(self, shader=None):
+
+		if shader is None:
+			shader = self.getShader()
+
+		assert(shader)
+
 		code = "def binder():\n\tpass\n"
 
 		# items made up of 3 floats
@@ -85,7 +113,7 @@ class Material:
 						self._texture[i] = Texture.getNullTexture()
 					else:
 						self._texture[i] = R.loadTexture(self._texture[i])
-						_
+
 				code += "\tmat._texture[%s].bind(%s,%s)\n"%(i,i,loc)
 
 		c = compile(code, "<compiled material>", "exec")
@@ -122,6 +150,7 @@ class MaterialsList:
 
 	def load(self, filename):
 		self._materials = {}
+		mat_num = 1
 		current_material = None
 		mat = Material()
 
@@ -138,7 +167,9 @@ class MaterialsList:
 			if cmd == "newmtl":
 				if current_material:
 					self._materials[current_material] = mat
-		
+					self._materials["#%s"%mat_num] = mat
+					mat_num += 1
+
 				mat = Material()
 				current_material = line
 
@@ -169,11 +200,16 @@ class MaterialsList:
 			elif cmd == "map_bump" or cmd == "tex2": # bump map (or texture 2)
 				mat._texture[2] = line
 
+			#this is an extension of sPyGlass
+			elif cmd == "shader":
+				mat._shader = line
 			else:
 				print "%s:%s - command not understood: '%s'"%(filename, n, cmd)
 
 		if current_material:
 			self._materials[current_material] = mat
+			self._materials["#%s"%mat_num] = mat
+			mat_num += 1
 
 
 	def update(self, other): # as in dictionaries
