@@ -46,16 +46,25 @@ class Material:
 		self._texture[tex_num] = texture
 
 	def setDiffuseColor(self, color):
-		self._diffuse_color = floatArray(color)
+		self._diffuse_color[0:3] = color
+
+	def getDiffuseColor(self):
+		return self._diffuse_color.copy()
 
 	def setSpecularColor(self, color):
-		self._specular_color = floatArray(color)
+		self._specular_color[0:3] = color
+
+	def getSpecularColor(self):
+		return self._specular_color.copy()
 
 	def setAmbientColor(self, color):
-		self._ambient_color = floatArray(color)
+		self._ambient_color[0:3] = color
+
+	def getAmbientColor(self):
+		return self._ambient_color.copy()
 
 	def setSpecularExponent(self, exp):
-		self._ambient_color = float(exp)
+		self._specular_exp = float(exp)
 
 	def setAlpha(self, alpha):
 		self._alpha = float(alpha)
@@ -88,24 +97,24 @@ class Material:
 
 		assert(shader)
 
-		code = "def binder():\n\tpass\n"
+		code = ""
 
 		# items made up of 3 floats
 		for what in ("diffuse_color","specular_color","ambient_color"):
 			loc = shader.getUniformPos(what)
-			if loc>0:
+			if loc!=-1:
 				code += "\tglUniform3fv(%s, 1, mat._%s)\n"%(loc,what)
 
 		# items made up of 1 float
 		for what in ("specular_exp","alpha"):
 			loc = shader.getUniformPos(what)
-			if loc>0:
+			if loc!=-1:
 				code += "\tglUniform1f(%s, mat._%s)\n"%(loc,what)
 
 		# textures
 		for i in xrange(3):
 			loc = shader.getUniformPos("texture%s"%i)
-			if loc>0:
+			if loc!=-1:
 				try: # see if the texture is already loaded
 					self._texture[i].id()
 				except:
@@ -116,9 +125,13 @@ class Material:
 
 				code += "\tmat._texture[%s].bind(%s,%s)\n"%(i,i,loc)
 
-		c = compile(code, "<compiled material>", "exec")
+		if not code:
+			code = "def binder(): pass"
+		else:
+			code = "def binder():\n"+code
 
-		print code
+
+		c = compile(code, "<compiled material>", "exec")
 
 		ns = dict(mat = self, glUniform3fv=glUniform3fv, glUniform1f=glUniform1f)
 	
@@ -174,13 +187,13 @@ class MaterialsList:
 				current_material = line
 
 			elif cmd == "Ka": # ambient color
-				mat._ambient_color = self._parseColor(line, filename, n)
+				mat._ambient_color[0:3] = self._parseColor(line, filename, n)
 
 			elif cmd == "Kd": # diffuse color
-				mat._diffuse_color = self._parseColor(line, filename, n)
+				mat._diffuse_color[0:3] = self._parseColor(line, filename, n)
 			
 			elif cmd == "Ks": # specular color
-				mat._specular_color = self._parseColor(line, filename, n)
+				mat._specular_color[0:3] = self._parseColor(line, filename, n)
 			
 			elif cmd == "Ns": # specular exponent
 				mat._specular_exp = self._parseFloat(line, filename, n)
@@ -204,7 +217,7 @@ class MaterialsList:
 			elif cmd == "shader":
 				mat._shader = line
 			else:
-				print "%s:%s - command not understood: '%s'"%(filename, n, cmd)
+				print "%s:%s - material property ignored: '%s'"%(filename, n, cmd)
 
 		if current_material:
 			self._materials[current_material] = mat
