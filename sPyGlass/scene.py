@@ -118,9 +118,10 @@ class Scene(object):
 
 
 	# this is called by the camera instance when a parameter changes
-	def flagCameraChanged(self):
-		self._camera_changed = True
-		
+	def flagCameraChanged(self, cam):
+		if cam == self._camera:
+			self._camera_changed = True
+
 
 	def uploadUniforms(self, shader):
 		self._prepareMatrices()

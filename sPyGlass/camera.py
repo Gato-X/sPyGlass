@@ -48,17 +48,17 @@ class Camera(object):
 
 	def resetView(self):
 		self._view_m = T.identity_matrix()
-		if self._scene: self._scene.flagCameraChanged()
+		if self._scene: self._scene.flagCameraChanged(self)
 
 	
 	def transform(self, trans):
 		self._view_m = N.dot(self._view_m, trans)
-		if self._scene: self._scene.flagCameraChanged()
+		if self._scene: self._scene.flagCameraChanged(self)
 
 
 	def setTransform(self, trans):
 		self._view_m = trans
-		if self._scene: self._scene.flagCameraChanged()
+		if self._scene: self._scene.flagCameraChanged(self)
 
 
 	def getScene(self):
@@ -82,6 +82,9 @@ class Camera(object):
 		self._scene = scene
 
 
+	def viewportChanged(self, width, height):
+		pass
+
 
 class PerspectiveCamera(Camera):
 	def __init__(self, fov = 60.0, near=0.5, far=1000):
@@ -99,7 +102,7 @@ class PerspectiveCamera(Camera):
 	def fov(self, value):
 		self._fov = value
 		self._projection_changed = True
-		if self._scene: self._scene.flagCameraChanged()
+		if self._scene: self._scene.flagCameraChanged(self)
 
 
 	@property
@@ -110,7 +113,7 @@ class PerspectiveCamera(Camera):
 	def near(self, value):
 		self._near = value
 		self._projection_changed = True
-		if self._scene: self._scene.flagCameraChanged()
+		if self._scene: self._scene.flagCameraChanged(self)
 
 
 	@property
@@ -121,7 +124,7 @@ class PerspectiveCamera(Camera):
 	def far(self, value):
 		self._far = value
 		self._projection_changed = True
-		if self._scene: self._scene.flagCameraChanged()
+		if self._scene: self._scene.flagCameraChanged(self)
 
 
 	def setParameters(self, fov=None, near=None, far=None):
@@ -130,7 +133,7 @@ class PerspectiveCamera(Camera):
 		if far: self._far = far
 		
 		self._projection_changed = True
-		if self._scene: self._scene.flagCameraChanged()
+		if self._scene: self._scene.flagCameraChanged(self)
 
 
 	def setPosition(self, position, look_at=None, up = None):
@@ -139,11 +142,17 @@ class PerspectiveCamera(Camera):
 		else:
 			self._view_m[0:3,3] = N.dot(self._view_m[0:3,0:3],-eye)
 	
-		if self._scene: self._scene.flagCameraChanged()
+		if self._scene: self._scene.flagCameraChanged(self)
 
 
 	def _getNewProjectionMatrix(self):
 		return frustumProjMtx(self._fov, self._near, self._far)
+
+
+
+	def viewportChanged(self):
+		self._projection_changed = True
+		if self._scene: self._scene.flagCameraChanged(self)
 
 
 
@@ -156,40 +165,47 @@ class OrthoCamera(Camera):
 
 	def setArea(self, x_max, y_max=None, x_min=None, y_min=None):
 
-		if x_min is None:
-			if x_max is None:
-				self._x_min = -1
-				self._x_max =  1
-			else:
-				self._x_min = -x_max*0.5
-				self._x_max =  x_max*0.5
-		elif x_max is None:
-				assert(False) # can't just specify minimum
-		else:
-			self._x_min = x_min
-			self._x_max = x_max
+		self._area_set = (x_min, y_min, x_max, y_max)
 
 		if y_min is None:
 			if y_max is None:
-				vpw, vph = getViewportSize()
-				f = float(vph)/float(vpw) * (self._x_max - self._x_min)
-
-				self._y_min = -f*0.5
-				self._y_max =  f*0.5
+				self._y_min = -1
+				self._y_max =  1
 			else:
 				self._y_min = -y_max*0.5
 				self._y_max =  y_max*0.5
 		elif y_max is None:
-				assert(False) # can't just specify minimum
+			assert(False) # can't just specify minimum
 		else:
 			self._y_min = y_min
 			self._y_max = y_max
 
+		if x_min is None:
+			if x_max is None:
+
+				vpw, vph = getViewportSize()
+				f = float(vpw)/float(vph) * (self._y_max - self._y_min)
+
+				self._x_min = -f*0.5
+				self._x_max =  f*0.5
+			else:
+				self._x_min = -x_max*0.5
+				self._x_max =  x_max*0.5
+		elif x_max is None:
+			assert(False) # can't just specify minimum
+		else:
+			self._x_min = x_min
+			self._x_max = x_max
+
+
 		self._projection_changed = True
-		if self._scene: self._scene.flagCameraChanged()
+		if self._scene: self._scene.flagCameraChanged(self)
 
 
 	def _getNewProjectionMatrix(self):
-		return T.clip_matrix(self._x_min, self._x_max, self._y_max, self._y_min, -1, 1)#  0.,0.,.,1.,-1.,1.,False)
+		return T.clip_matrix(self._x_min, self._x_max, self._y_min, self._y_max, -1, 1)#  0.,0.,.,1.,-1.,1.,False)
 
 
+	def viewportChanged(self):
+		x_min, y_min, x_max, y_max = self._area_set
+		self.setArea(x_max, y_max, x_min, y_min)
