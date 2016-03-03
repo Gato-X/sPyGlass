@@ -22,11 +22,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-
+from glcompat import *
 import zipfile
 import os.path
 import pygame
-from glcompat import *
 import StringIO
 from vbo import DataVbo, IndexVbo
 from materials import Material
@@ -36,6 +35,7 @@ import resources as R
 from collections import namedtuple
 import numpy as N
 from mathtools import NumpyDefaultFloatType
+from mem import MemoryManager
 
 try:
 	import xml.etree.ElementTree as ET
@@ -106,13 +106,13 @@ class LitteraFont:
 
 	def getKerning(self, c1, c2):
 		try:
-			return self._kern((c1,c2))
+			return self._kern[(c1,c2)]
 		except:
 			return 0
 
 
 	def getTexture(self, id):
-		return self._page(id)
+		return self._page[id]
 
 
 	def getMaterial(self):
@@ -126,30 +126,65 @@ class LitteraFont:
 			return None
 			
 
+class TextMemoryManager(MemoryManager):
+		def __init__(self, page_size = 4096):
+			super(TextMemoryManager, self).__init__()
+			self._page_size = page_size
+
+			indices = []
+
+			j = 0
+			for i in xrange(2*page_size): # in case a large page is requested
+				indices.extend([j,j+1,j+3,j+1,j+2,j+3])
+				j += 4
+
+			indices = N.array(indices, dtype="u2")
+
+			self._indices_vbo = IndexVbo(indices)
+			self._shader = R.loadShaderProgram("text")
+
+		# allocate a page for at least min_size vertices
+		def _allocNewPage(self, min_size):
+			size = max(min_size, self._page_size)
+			data = N.zeros((size,4),dtype=NumpyDefaultFloatType) # pos(2)+uv(2) -> 4
+			data_vbo = DataVbo(data, GL_DYNAMIC_DRAW)
+			data_vbo.defineFields(("position",2),("tc",2))
+
+			return data_vbo, size
+
+
+		def getIndicesVbo(self):
+			return self._indices_vbo
+
+
+		def getShader(self):
+			return self._shader
+
+
 
 class Text(ObjManager):
+	_mem = None
 
 	# note initial_size (for now) is the max number of characters the Text instance
 	# can render
-	def __init__(self, initial_size=100):
-		data = N.zeros((initial_size,4),dtype=NumpyDefaultFloatType) # pos(2)+uv(2) -> 4
-		self._data_vbo = DataVbo(data, GL_DYNAMIC_DRAW)
+	def __init__(self, font = None, text = None, origin_at_base=True):
+		if Text._mem is None:
+			Text._mem = TextMemoryManager()
 
-		indices = []
+		self._mem = Text._mem
 
-		j = 0
-		for i in xrange(initial_size):
-			indices.extend([j,j+1,+j+3,j+1,j+2,j+3])
-			j += 4
+		self._data_vbo_mem = None
+		self._data_vbo = None
 
-		indices = N.array(indices, dtype="u2")
+		super(Text,self).__init__(None, self._mem.getIndicesVbo())
 
-		self._indices_vbo = IndexVbo(indices)
+		self._shader = self._mem.getShader()
 
-		self._data_vbo.defineFields(("position",2),("tc",2))
-		self._shader = R.loadShaderProgram("text")
+		self._font = font
 
-		super(Text,self).__init__(self._data_vbo, self._indices_vbo)
+		if text is not None:
+			self.setText(text, origin_at_base)
+
 
 
 	def setFont(self, font):
@@ -157,16 +192,28 @@ class Text(ObjManager):
 
 
 	def setText(self, text, origin_at_base=True):
+
+		txt_size = len(text)
+
+		if self._data_vbo_mem is None or  txt_size > len(self._text): # we need to reallocate
+			if self._data_vbo_mem:
+				self._data_vbo_mem.free()
+			self._data_vbo_mem = self._mem.alloc(txt_size*4)
+			self._data_vbo = self._data_vbo_mem.page_data
+
 		self._text = text
 		font = self._font
 		data = self._data_vbo.getBuffer()
 
 		x = 0
 		y = font._base if origin_at_base else 0
-		i = 0
+
+		i0 = i1 = self._data_vbo_mem.start
 		tot_prims = 0
 
 		prev = None
+
+		xmin = xmax = ymin = ymax = None
 
 		for c in text:
 			if c == '\n':
@@ -188,28 +235,42 @@ class Text(ObjManager):
 				x1 = x0 + g.width
 				y1 = y0 - g.height
 
+				xmin = x0 if xmin is None else min(xmin,x0)
+				xmin = min(xmin,x1)
+				ymin = y0 if ymin is None else min(ymin,y0)
+				ymin = min(ymin,y1)
+				xmax = x0 if xmax is None else max(xmax,x0)
+				xmax = max(xmax,x1)
+				ymax = y0 if ymax is None else max(ymax,y0)
+				ymax = max(ymax,y1)
+
 				u0 = float(g.x)/float(font._imgw)
 				u1 = u0 + float(g.width)/float(font._imgw)
 
 				v0 = -float(g.y)/float(font._imgh)
 				v1 = v0 -float(g.height)/float(font._imgh)
 
-				data[i]=[x0,y0,u0,v0]
-				data[i+1]=[x1,y0,u1,v0]
-				data[i+2]=[x1,y1,u1,v1]
-				data[i+3]=[x0,y1,u0,v1]
-				i += 4
+				data[i1]=[x0,y0,u0,v0]
+				data[i1+1]=[x1,y0,u1,v0]
+				data[i1+2]=[x1,y1,u1,v1]
+				data[i1+3]=[x0,y1,u0,v1]
+				i1 += 4
 				tot_prims += 2 # rather than multiplying later by 2
 
 			prev = c_num
 			x += g.xadvance
 
+		self.bounds = pygame.Rect(xmin,ymin,xmax-xmin,ymax-ymin)
+
 		self.clearBatches()
-		if i != 0:
-			self._data_vbo.updateData(0, i)
-			self.addBatch(self._shader, font.getMaterial(), 0, tot_prims)
-		
-				
-			
-			
-		
+		if i0 != i1:
+			self._data_vbo.updateData(i0, i1)
+			# (i0/4)*6 :
+			# 4 vertices per quad, 6 indices per quad (2 triangles)
+			self.addBatch(self._shader, font.getMaterial(), (i0/4)*6, tot_prims)
+
+
+	def __del__(self):
+		if self._data_vbo_mem is not None:
+			self._data_vbo_mem.free()
+
