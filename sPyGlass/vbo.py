@@ -60,8 +60,10 @@ class Vbo(object):
 
 		self._target = target
 
+		self._allocated_bytes = self._total_values * self._bytes_per_item
+
 		glBindBuffer(target, self._vbo)
-		glBufferData(target, self._total_values * self._bytes_per_item, dptr, usage)
+		glBufferData(target, self._allocated_bytes, dptr, usage)
 
 
 	# returns a NumberType
@@ -117,6 +119,8 @@ class DataVbo(Vbo):
 		pass
 
 	def __init__(self, data, usage = GL_STATIC_DRAW):
+		if callable(data):
+			data = data()
 
 		if isNumpyArray(data):
 			self._data = data
@@ -187,7 +191,7 @@ class DataVbo(Vbo):
 			glEnableVertexAttribArray(loc)
 			glVertexAttribPointer(loc, f_size, self._gl_type, GL_FALSE, self._bytes_per_record, ctypes.c_void_p(byte_offset))
 
-			print "Attrib %s, ofs: byte %s, size: %s elements, loc: %s, type: %s, record size: %s bytes"%(f_name, byte_offset, f_size, loc, self._gl_type, self._bytes_per_record)
+			#print "Attrib %s, ofs: byte %s, size: %s elements, loc: %s, type: %s, record size: %s bytes"%(f_name, byte_offset, f_size, loc, self._gl_type, self._bytes_per_record)
 
 
 	# used to compare how compatible two VAOs are
@@ -220,6 +224,7 @@ class DataVbo(Vbo):
 		offset = from_record * self._bytes_per_record
 		size = (to_record - from_record) * self._bytes_per_record
 
+		self.bind()
 		glBufferSubData(GL_ARRAY_BUFFER, offset, size, self._data[from_record:].ravel().ctypes.data_as(ctypes.c_void_p))
 
 
