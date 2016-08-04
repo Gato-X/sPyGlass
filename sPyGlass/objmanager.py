@@ -63,6 +63,7 @@ class ObjManager(object):
 		self._transform = None
 
 
+
 	def _getMaterialBinder(self, shader, material):
 		t = (material,shader)
 		try:
@@ -123,7 +124,47 @@ class ObjManager(object):
 
 	def resetTransform(self):
 		self._transform = None
-	
+
+
+	def drawMany(self, scene, instances):
+
+		shader = None
+		mbinder = None
+		vao = None
+
+		scene.pushTransform()
+
+		for b_num, batch in enumerate(self._batches):
+			if batch.shader != shader:
+				shader = batch.shader
+				shader.use()
+				scene.uploadUniforms(shader)
+				vao = None # TODO: required??
+				mbinder = None
+
+			if batch.vao != vao:
+				vao = batch.vao
+				vao.bind()
+
+			batch_mbinder = batch.mbinder
+
+			self._indices_vbo.bind()
+
+			for inst in instances:
+				if inst.binders is not None:
+					new_mbinder = inst.binders[b_num]
+				else:
+					new_mbinder = batch_mbinder
+
+				if new_mbinder != mbinder:
+					mbinder = new_mbinder
+					mbinder()
+
+				scene.replaceLastTransform(inst.transform)
+				glDrawElements(batch.primitive_type, batch.total_points, batch.data_type, batch.offset)
+
+		scene.popTransform()
+
 
 	def draw(self, scene):
 
