@@ -110,68 +110,45 @@ class Router:
 		return distances
 
 
+	# adapted from http://www.redblobgames.com/pathfinding/a-star/implementation.html
 
-	def computeRoute(self, src_node, dest_node, use_a_star=True): # uses A*
-		g = self._graph
+	def computeRoute(self, src_node, dest_node): # uses A*
 
-		if src_node is None or dest_node is None:
-			return None
+		graph = self._graph
 
 		src_node_id = src_node.getLeafId()
 		dest_node_id = dest_node.getLeafId()
 
-		search_front_queue = SortedList()
-		h = 0#src_node.distanceTo(dest_node) # A* heuristic distance value
+		frontier = SortedList()
+		frontier.add((0,src_node_id,src_node))
+		cost_so_far = {src_node_id:0}
+		came_from = {}
 
-		search_front_queue.add((h,h,src_node_id))
-		search_front_p = {}
-		frozen = set()
-
-		loops = 0
-
-		while search_front_queue:
-			loops += 1
-			d,old_h,a = search_front_queue.pop(0)
-			if a in frozen: # ignore duplicates
-				continue
-
-			# target found
-			if a == dest_node_id:
+		#loops = 0
+		
+		while frontier:
+			#loops += 1
+			g,node_id,node = frontier.pop(0)
+			
+			if node == dest_node:
 				break
 
-			frozen.add(a)
+			for adj_id,portal in node.getAdjacencies().iteritems():
+				adj = graph.getNode(adj_id)
 
-			node = g.getNode(a)
+				new_cost = cost_so_far[node_id] + node.distanceTo(adj)
 
-			for adj, portal in node.getAdjacencies().iteritems():
-				if adj in frozen: # don't try to even check nodes that have been already frozen
-					continue
-
-				dg = node.distanceTo(g.getNode(adj))
-
-				new_h = node.distanceTo(dest_node)
-
-				#new_d = (d+dg)-old_h+new_h
-
-				new_d = d + dg
-
-
-				# route to adj through a is longer than what we already had. Dismiss
-				if adj in search_front_p and new_d > search_front_p[adj][0]:
-					continue
-
-				search_front_p[adj] = (new_d, a, portal)
-
-				# this might add duplicate adj items (ideally we would delete any previous insertion)
-				# because we can't easily erase from the queue.
-				search_front_queue.add((new_d, new_h, adj))
-
-		print loops
+				if adj_id not in cost_so_far or new_cost < cost_so_far[adj_id]:
+					cost_so_far[adj_id] = new_cost
+					h = node.distanceTo(dest_node) # the A* heuristic
+					priority = new_cost + h
+					frontier.add((priority,adj_id,adj))
+					came_from[adj_id] = (node_id,portal)
 
 		p = dest_node_id
 		route = [(p,None)] # stores tuples: node_number, exit portal
-		while p in search_front_p:
-			_,prev,portal = search_front_p[p]
+		while p in came_from:
+			prev,portal = came_from[p]
 			route.append((prev, portal))
 			p = prev
 
@@ -298,7 +275,7 @@ if __name__=="__main__":
 	draw = ImageDraw.Draw(img)
 
 	
-	random.seed(102)
+	random.seed(162)
 
 	for i in xrange(8):
 		x0 = random.randint(-10,w-10)
@@ -321,6 +298,8 @@ if __name__=="__main__":
 	print n2
 
 	route = rt.computeRoute(n1,n2)
+
+	#print "Route:",route
 
 	route_points = map(lambda pt:qt.getNode(pt[0]).getCenter(), route)
 	qt.saveNodesImage("test2.png", hilights= route )
