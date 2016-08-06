@@ -109,8 +109,10 @@ def frustumProjMtx(fovy, near, far, aspect=0):
 		from gltools import getViewportSize
 		w,h = getViewportSize()
 		aspect = float(w) / float(h)
+
 	h = math.tan(fovy / 360.0 * math.pi) * near
 	w = h * aspect
+
 	return T.clip_matrix(-w, w, -h, h, near, far, perspective=True)
 
 
